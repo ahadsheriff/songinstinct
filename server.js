@@ -81,9 +81,9 @@ $ curl -X GET http://localhost:3000/users/Carol
 
 */
 app.get('/*', function (req, res) {
+    res.send('OK');
 
-
-}
+});
 
 
 
