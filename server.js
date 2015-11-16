@@ -1,208 +1,362 @@
-// Lectures 11 and 12 - CSC 210 Fall 2015
-// Philip Guo
-
-// This is the backend for the Fakebook web app, which demonstrates CRUD
-// with Ajax using a REST API. (static_files/fakebook.html is the frontend)
-
-// Prerequisites - first run:
-//   npm install express
-//   npm install body-parser
-//
-// then run:
-//   node server.js
-//
-// and the frontend can be viewed at http://localhost:3000/fakebook.html
-
-var express = require('express');
-var app = express();
-
-// required to support parsing of POST request bodies
-var bodyParser = require('body-parser');
-app.use(bodyParser.json()); // support json encoded bodies
-app.use(bodyParser.urlencoded({ extended: true })); // support encoded bodies
-
-// put all of your static files (e.g., HTML, CSS, JS, JPG) in the static_files/
-// sub-directory, and the server will serve them from there. e.g.,:
-//
-// http://localhost:3000/fakebook.html
-// http://localhost:3000/cat.jpg
-//
-// will send the file static_files/cat.jpg to the user's Web browser
-app.use(express.static('static_files'));
-
-
-// simulates a database in memory, to make this example simple and
-// self-contained (so that you don't need to set up a separate database).
-// note that a real database will save its data to the hard drive so
-// that they become persistent, but this fake database will be reset when
-// this script restarts. however, as long as the script is running, this
-// database can be modified at will.
-var fakeDatabase = [
-  {name: 'Philip', job: 'professor', pet: 'cat.jpg'},
-  {name: 'Jane',   job: 'engineer',  pet: 'bear.jpg'},
-  {name: 'John',   job: 'student',   pet: 'dog.jpg'}
+var images1 = [
+[1, 60, 70],
+[2, 40, 50],
+[3, 70, 75],
+[4, 30, 40],
+[5, 30, 50],
+[6, 60, 70],
+[7, 80, 100],
+[8, 20, 40],
+[9, 60, 70],
+[10,  70, 80],
+[11,  80, 95],
+[12,  70, 80],
+[13,  90, 100],
+[14,  10, 20],
+[15,  20, 40],
+[16,  60, 70],
+[17,  70, 80],
+[18,  90, 100],
+[19,  10, 25],
+[20,  70, 80],
+[21,  60, 70],
+[22,  0,  30],
+[23,  30, 40],
+[24,  70, 90],
+[25,  0,  20],
+[26,  80, 100],
+[27,  10, 20],
+[28,  0,  20],
+[29,  20, 30],
+[30,  80, 100],
+[31,  70, 80],
+[32,  40, 50],
+[33,  10, 30],
+[34,  80, 100],
+[35,  70, 80],
+[36,  40, 50],
+[37,  80, 90],
+[38,  10, 30],
+[39,  0,  20],
+[40,  20, 30],
+[41,  40, 60],
+[42,  60, 80],
+[43,  60, 80],
+[44,  70, 80],
+[45,  50, 70],
+[46,  80, 100]
 ];
 
+var images2 = [
+[47,  50, 60],
+[48,  80, 95],
+[49,  50, 80],
+[50,  50, 70],
+[51,  20, 30],
+[52,  40, 50],
+[53,  60, 70],
+[54,  40, 70],
+[55,  40, 60],
+[56,  60, 70],
+[57,  80, 90],
+[58,  80, 90],
+[59,  80, 90],
+[60,  90, 100],
+[61,  90, 100],
+[62,  40, 60],
+[63,  40, 60],
+[64,  80, 90],
+[65,  50, 60],
+[66,  30, 50],
+[67,  75, 90],
+[68,  20, 35],
+[69,  20, 35],
+[70,  70, 80],
+[71,  40, 60],
+[72,  75, 80],
+[73,  75, 85],
+[74,  40, 60],
+[75,  70, 80],
+[76,  80, 90],
+[77,  80, 90],
+[78,  95, 100],
+[79,  30, 40],
+[80,  40, 60],
+[81,  30, 40],
+[82,  80, 90],
+[83,  80, 90],
+[84,  90, 100],
+[85,  20, 30],
+[86,  60, 70],
+[87,  50, 60],
+[88,  45, 65],
+[89,  80, 90],
+[90,  60, 70],
+[91,  60, 70],
+[92,  40, 60],
+[93,  30, 60],
+[94,  90, 100],
+[95,  20, 30],
+[96,  90, 100]
+//[97,  60, 70]
+];
 
-// REST API as described in http://pgbovine.net/rest-web-api-basics.htm
+var viewedImages = new Array();
 
-/* Run through a full API test session with curl (commands typed after '$',
-   outputs shown on the line below each command) ...
+function getImage(images) {
+  var rand = parseInt(Math.random()*(images.length), 10);
+  console.log(viewedImages.length);
+  return images[rand];
+};
 
-$ curl -X GET http://localhost:3000/users
-["Philip","Jane","John"]
-
-$ curl -X GET http://localhost:3000/users/Philip
-{"name":"Philip","job":"professor","pet":"cat.jpg"}
-
-$ curl -X PUT --data "job=bear_wrangler&pet=bear.jpg" http://localhost:3000/users/Philip
-OK
-
-$ curl -X GET http://localhost:3000/users/Philip
-{"name":"Philip","job":"bear_wrangler","pet":"bear.jpg"}
-
-$ curl -X DELETE http://localhost:3000/users/Philip
-OK
-
-$ curl -X GET http://localhost:3000/users/Philip
-{}
-
-$ curl -X GET http://localhost:3000/users
-["Jane","John"]
-
-$ curl -X POST --data "name=Carol&job=scientist&pet=dog.jpg" http://localhost:3000/users
-OK
-
-$ curl -X GET http://localhost:3000/users
-["Jane","John","Carol"]
-
-$ curl -X GET http://localhost:3000/users/Carol
-{"name":"Carol","job":"scientist","pet":"dog.jpg"}
-
-*/
-app.get('/*', function (req, res) {
-    res.send('OK');
-
-});
-
-
-
-// CREATE a new user
-//
-// To test with curl, run:
-//   curl -X POST --data "name=Carol&job=scientist&pet=dog.jpg" http://localhost:3000/users
-app.post('/users', function (req, res) {
-  var postBody = req.body;
-  var myName = postBody.name;
-
-  // must have a name!
-  if (!myName) {
-    res.send('ERROR');
-    return; // return early!
-  }
-
-  // check if user's name is already in database; if so, send an error
-  for (var i = 0; i < fakeDatabase.length; i++) {
-    var e = fakeDatabase[i];
-    if (e.name == myName) {
-      res.send('ERROR');
-      return; // return early!
+function removeIndex2(val) {
+    if (val > -1) {
+      images2.splice(val, 1);
     }
-  }
+};
 
-  // otherwise add the user to the database by pushing (appending)
-  // postBody to the fakeDatabase list
-  fakeDatabase.push(postBody);
-
-  res.send('OK');
-});
-
-
-// READ profile data for a user
-//
-// To test with curl, run:
-//   curl -X GET http://localhost:3000/users/Philip
-//   curl -X GET http://localhost:3000/users/Jane
-app.get('/users/*', function (req, res) {
-  var nameToLookup = req.params[0]; // this matches the '*' part of '/users/*' above
-  // try to look up in fakeDatabase
-  for (var i = 0; i < fakeDatabase.length; i++) {
-    var e = fakeDatabase[i];
-    if (e.name == nameToLookup) {
-      res.send(e);
-      return; // return early!
+function removeIndex1(val) {
+    if (val > -1) {
+      images1.splice(val, 1);
     }
-  }
+};
 
-  res.send('{}'); // failed, so return an empty JSON object!
+var express = require('express')
+  , http = require('http')
+  , path = require('path');
+
+var app = express();
+
+app.configure(function(){
+  app.set('port', process.env.PORT || 3000);
 });
 
-
-// READ a list of all usernames (note that there's no '*' at the end)
-//
-// To test with curl, run:
-//   curl -X GET http://localhost:3000/users
-app.get('/users', function (req, res) {
-  var allUsernames = [];
-
-  for (var i = 0; i < fakeDatabase.length; i++) {
-    var e = fakeDatabase[i];
-    allUsernames.push(e.name); // just record names
-  }
-
-  res.send(allUsernames);
+app.configure('development', function(){
+  app.use(express.errorHandler());
+  app.use(express.bodyParser());
 });
 
+/*app.post('/', function (req, res) {
+    console.log(request.body.name);
+});*/
 
-// UPDATE a user's profile with the data given in POST
-//
-// To test with curl, run:
-//   curl -X PUT --data "job=bear_wrangler&pet=bear.jpg" http://localhost:3000/users/Philip
-app.put('/users/*', function (req, res) {
-  var nameToLookup = req.params[0]; // this matches the '*' part of '/users/*' above
-  // try to look up in fakeDatabase
-  for (var i = 0; i < fakeDatabase.length; i++) {
-    var e = fakeDatabase[i];
-    if (e.name == nameToLookup) {
-      // update all key/value pairs in e with data from the post body
-      var postBody = req.body;
-      for (key in postBody) {
-        var value = postBody[key];
-        e[key] = value;
+app.get('/', function (req, res, next) {
+  var options = {
+    root: __dirname + '/public/',
+    dotfiles: 'deny',
+    headers: {
+        'x-timestamp': Date.now(),
+        'x-sent': true
+    }
+  };
+
+  res.sendfile('index.html', options, function (err) {
+    if (err) {
+      console.log(err);
+      res.status(err.status).end();
+    }
+    else {
+      console.log('Sent: ' + 'index');
+    }
+  });
+});
+
+app.get('/images/banner.jpg', function (req, res, next) {
+  var options = {
+    root: __dirname + '/public/images/',
+    dotfiles: 'deny',
+    headers: {
+        'x-timestamp': Date.now(),
+        'x-sent': true
+    }
+  };
+
+  res.sendfile('banner.jpg', options, function (err) {
+    if (err) {
+      console.log(err);
+      res.status(err.status).end();
+    }
+    else {
+      console.log('banner.jpg');
+    }
+  });
+});
+
+//stylesheets
+app.get('/css/:name.css', function (req, res, next) {
+  var options = {
+    root: __dirname + '/public/css/',
+    dotfiles: 'deny',
+    headers: {
+        'x-timestamp': Date.now(),
+        'x-sent': true
+    }
+  };
+
+  fileName = req.params.name;
+  res.sendfile('style.css', options, function (err) {
+    if (err) {
+      console.log(err);
+      res.status(err.status).end();
+    }
+    else {
+      console.log('style.css');
+    }
+  });
+});
+
+app.get('/css/images/overlay.png', function (req, res, next) {
+  var options = {
+    root: __dirname + '/public/css/images/',
+    dotfiles: 'deny',
+    headers: {
+        'x-timestamp': Date.now(),
+        'x-sent': true
+    }
+  };
+
+  res.sendfile('overlay.png', options, function (err) {
+    if (err) {
+      console.log(err);
+      res.status(err.status).end();
+    }
+    else {
+      console.log('images/overlay.png');
+    }
+  });
+});
+
+//font
+app.get('/fonts/font:name', function (req, res, next) {
+  var options = {
+    root: __dirname + '/public/fonts/',
+    dotfiles: 'deny',
+    headers: {
+        'x-timestamp': Date.now(),
+        'x-sent': true
+    }
+  };
+
+  fileName = 'font' + req.params.name;
+  console.log(fileName);
+  res.sendfile(fileName, options, function (err) {
+    if (err) {
+      console.log(err);
+      res.status(err.status).end();
+    }
+    else {
+      console.log(fileName);
+    }
+  });
+});
+
+//javascript
+app.get('/js/:name', function (req, res, next) {
+  var options = {
+    root: __dirname + '/public/js/',
+    dotfiles: 'deny',
+    headers: {
+        'x-timestamp': Date.now(),
+        'x-sent': true
+    }
+  };
+
+  fileName = req.params.name;
+  console.log(fileName);
+  res.sendfile(fileName, options, function (err) {
+    if (err) {
+      console.log(err);
+      res.status(err.status).end();
+    }
+    else {
+      console.log(fileName);
+    }
+  });
+});
+
+//photos page
+var pairs = new Array(); //TODO: js array of arrays
+
+app.get('/start.html', function (req, res, next) {
+  //images = populateImages();
+  var options = {
+    root: __dirname + '/public/',
+    dotfiles: 'deny',
+    headers: {
+        'x-timestamp': Date.now(),
+        'x-sent': true
+    }
+  };
+
+  res.sendfile('start.html', options, function (err) {
+    if (err) {
+      console.log(err);
+      res.status(err.status).end();
+    }
+    else {
+      console.log('start.html');
+    }
+  });
+});
+
+app.get('/images/pic1.jpg', function(req, res) {
+  if(viewedImages.length < 96) {
+    var image = getImage(images1);
+    removeIndex1(image[0]-1);
+    imageURL = image[0] + '.jpg';
+    viewedImages.push(image);
+
+    var options = {
+      root: __dirname + '/public/images/',
+      dotfiles: 'deny',
+      headers: {
+          'x-timestamp': Date.now(),
+          'x-sent': true
       }
+    };
 
-      res.send('OK');
-      return; // return early!
-    }
+    //fileName = req.params.name;
+    res.sendfile(imageURL, options, function (err) {
+      if (err) {
+        console.log(err);
+        res.status(err.status).end();
+      }
+      else {
+        console.log('Sent: image1');
+      }
+    });
   }
-
-  res.send('ERROR'); // nobody in the database matches nameToLookup
 });
 
+app.get('/images/pic2.jpg', function(req, res) {
+  if(viewedImages.length < 96) {
+    var image = getImage(images2);
+    removeIndex2(image[0]-1);
+    imageURL = image[0] + '.jpg';
+    viewedImages.push(image);
 
-// DELETE a user
-//
-// To test with curl, run:
-//   curl -X DELETE http://localhost:3000/users/Philip
-//   curl -X DELETE http://localhost:3000/users/Jane
-app.delete('/users/*', function (req, res) {
-  var nameToLookup = req.params[0]; // this matches the '*' part of '/users/*' above
-  // try to look up in fakeDatabase
-  for (var i = 0; i < fakeDatabase.length; i++) {
-    var e = fakeDatabase[i];
-    if (e.name == nameToLookup) {
-      fakeDatabase.splice(i, 1); // remove current element at index i
-      res.send('OK');
-      return; // return early!
-    }
+    var options = {
+      root: __dirname + '/public/images/',
+      dotfiles: 'deny',
+      headers: {
+          'x-timestamp': Date.now(),
+          'x-sent': true
+      }
+    };
+
+    //fileName = req.params.name;
+    res.sendfile(imageURL, options, function (err) {
+      if (err) {
+        console.log(err);
+        res.status(err.status).end();
+      }
+      else {
+        console.log('Sent image2');
+      }
+    });
   }
-
-  res.send('ERROR'); // nobody in the database matches nameToLookup
 });
 
-
-// start the server on http://localhost:3000/
-var server = app.listen(3000, function () {
-  var port = server.address().port;
-  console.log('Server started at http://localhost:%s/', port);
+http.createServer(app).listen(app.get('port'), function(){
+  console.log("Express server listening on port " + app.get('port'));
 });
